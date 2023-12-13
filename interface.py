@@ -130,7 +130,7 @@ class UiController:
         
 if  __name__ == "__main__":
     #----------------Test: UI class----------------#
-    uiHandler = UiController("COM11", 115200)
+    uiHandler = UiController("COM11", 9600)
     uiHandler.main()
     
     

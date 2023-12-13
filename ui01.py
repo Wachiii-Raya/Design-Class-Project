@@ -8,17 +8,18 @@ import time
 class UiController:
     def __init__(self, serialPort, baudRate):
         self.serialHandler = serial.Serial(serialPort, baudRate)
+        self.startTime = 0
         self.buffer = self.get_buffer()
         self.timeTaken = None
-        self.currentStatus = None
+        self.currentStatus = "Running"
         self.currentFileName = None
         self.forceUpperBound = 12
         self.forceLowerBound = 2
         self.isRunning = False
         self.inProgressFlag = False
-        self.x_axis = self.buffer["time"]
-        # self.x_axis = np.linspace(0, 10, 100)
-        self.y_axis = self.buffer["force"]
+        # self.x_axis = self.buffer["time"]
+        # # self.x_axis = np.linspace(0, 10, 100)
+        # self.y_axis = self.buffer["force"]
 
     
     def get_buffer(self):
@@ -36,7 +37,7 @@ class UiController:
         buffer["status"] = np.array([])
                 
         
-    def add_to_buffer(self, time: float, force: float):
+    def add_to_buffer(self, time: float, force: float, status: str):
         '''Adds the time and force to the buffer dictionary'''
         # the value is add in the end of the array
         self.buffer["time"] = np.append(self.buffer["time"], time)
@@ -86,66 +87,76 @@ class UiController:
                 dpg.add_button(label="Start", callback=self.cb_start)
                 # reset button
                 dpg.add_button(label="Reset", callback=self.cb_reset)
-        # plot
-        with dpg.window(label="force Value", height=400, width=800):
-            with dpg.plot(label="Plot", height=-1, width=-1):
-                dpg.add_plot_legend()
-                x_axis = dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="x_axis",no_tick_labels=True)
-                y_axis = dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="y_axis")
-                dpg.set_axis_limits(y_axis, 0, 102300000)
-                dpg.add_line_series(self.x_axis, self.y_axis, label="force FSR", parent="y_axis", tag="tag_plot")
+        # # plot
+        # with dpg.window(label="force Value", height=400, width=800):
+        #     with dpg.plot(label="Plot", height=-1, width=-1):
+        #         dpg.add_plot_legend()
+        #         x_axis = dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="x_axis",no_tick_labels=True)
+        #         y_axis = dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="y_axis")
+        #         dpg.set_axis_limits(y_axis, 0, 102300000)
+        #         dpg.add_line_series(self.x_axis, self.y_axis, label="force FSR", parent="y_axis", tag="tag_plot")
                 
     
     def cb_get_student_name(self):
         self.currentFileName = dpg.get_value("student name")
                 
         
-    def thread_record_data(self, start_time):
+    def thread_record_data(self):
         while True:
             while self.isRunning:
                 data = self.serialHandler.readline().decode('utf-8', 'ignore').strip()
-                print(f"Serial Data: {data}")
+                try:
+                    data = float(data)
+                except:
+                    data = 0
                 # append data and time taken to buffer
                 current_time = time.time()
-                self.timeTaken = current_time - start_time
-                self.add_to_buffer(self.timeTaken, data)
-
-
-    def update_ui(self, start_time):
+                self.timeTaken = current_time - self.startTime
+                self.add_to_buffer(self.timeTaken, data, self.currentStatus)
+                print(self.buffer)
+                
+                
+    def set_status_flag(self):
         while True:
             while self.isRunning:
-                data = self.serialHandler.readline().decode('utf-8', 'ignore').strip()
-                current_time = time.time()
-                timeTakenUI = current_time - start_time
-                dpg.set_value("Time Taken", timeTakenUI)
-                dpg.set_value("force FSR", data)
-                if (float(data) > self.forceUpperBound & self.inProgressFlag == False):
-                    self.currentStatus = "Force is too high"
-                    dpg.set_value("Experiment Status", self.currentStatus)
-                elif (float(data) < self.forceLowerBound & self.inProgressFlag == False):
-                    self.currentStatus = "Force is too low"
-                    dpg.set_value("Experiment Status", self.currentStatus)
-                else:
+                try:
+                    data = self.buffer["force"][-1]
+                except:
+                    data = 0
+                # if force in range, set flag to true
+                if (float(data) > self.forceUpperBound):
                     self.currentStatus = "Start collecing blood"
-                    dpg.set_value("Experiment Status", self.currentStatus)
                     self.inProgressFlag = True
                     time.sleep(3)
-                    dpg.set_value("Experiment Status", "In progress")
+                    self.currentStatus = "In progress"
                     time.sleep(12)
-                    self.currentStatus = "Time is up!"
-        
-        
-    def thread_running(self, start_time):
-        thread_record_data = Thread(target=self.thread_record_data, args=(start_time,))
-        thread_update_ui = Thread(target=self.update_ui, args=(start_time,))
-        thread_record_data.start()
-        thread_update_ui.start()
+                    self.currentStatus = "Finished"
+                elif (float(data) < self.forceLowerBound):
+                    self.currentStatus = "Force is too low"
+                    self.inProgressFlag = False
+                else:
+                    self.currentStatus = "Force is too high"
+                    self.inProgressFlag = False
+                    
+
+
+    def update_ui(self):
+        while True:
+            while self.isRunning:
+                try:
+                    data = self.buffer["force"][-1]
+                    timeTakenUI = self.buffer["time"][-1]
+                except:
+                    data = 0
+                    timeTakenUI = 0
+                dpg.set_value("Time Taken", timeTakenUI)
+                dpg.set_value("force FSR", data)
+                dpg.set_value("Experiment Status", self.currentStatus)
         
         
     def cb_start(self):
         self.isRunning = True
-        start_time = time.time()
-        self.thread_running(start_time)
+        self.startTime = time.time()
 
 
     def cb_reset(self):
@@ -158,23 +169,21 @@ class UiController:
         self.currentStatus = None
         self.currentFileName = None
         self.isRunning = False
+        self.inProgressFlag = False
+        self.startTime = 0
         # clear buffer
         self.clear_buffer(self.buffer)
         # clear input box
         dpg.set_value("student name", "")
-            
-
-    def cb_reset(self):
-        '''Resets the experiment status and the time taken'''
-        dpg.set_value("Time Taken", "")
-        self.currentTime = None
-        self.currentStatus = None
-        self.currentFileName = None
-        self.isRunning = False
-        # clear buffer
-        self.clear_buffer(self.buffer)
-        # clear input box
-        dpg.set_value("student name", "")
+        
+        
+    def thread_running(self):
+        thread_record_data = Thread(target=self.thread_record_data)
+        thread_update_ui = Thread(target=self.update_ui)
+        thread_status_flag = Thread(target=self.set_status_flag)
+        thread_status_flag.start()
+        thread_record_data.start()
+        thread_update_ui.start()
 
 
     def ui_init(self):
@@ -185,6 +194,7 @@ class UiController:
     
     def ui_draw(self):
         self.render()
+        self.thread_running()
         
     
     def ui_startRenderer(self):
@@ -217,6 +227,10 @@ if __name__ == '__main__':
     # uiController.add_to_buffer(2, 'hello')
     # uiController.add_to_buffer(5, 'hello')
     
+    # # read the last value of the buffer
+    # print(uiController.buffer["time"][-1])
+    # print(uiController.buffer["force"][-1])
+    
     # print(uiController.buffer)
     # uiController.save_buffer_to_file('test.txt')
     
@@ -232,8 +246,3 @@ if __name__ == '__main__':
     # print(buffer)
     # print(uiController.buffer)
     # uiController.save_buffer_to_file('test.txt')
-   
-        
-    
-        
-   
