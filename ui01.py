@@ -131,11 +131,11 @@ class UiController:
                     self.currentStatus = "In progress"
                     time.sleep(12)
                     self.currentStatus = "Finished"
-                elif (float(data) < self.forceLowerBound):
+                elif (float(data) < self.forceLowerBound & self.inProgressFlag == False):
                     self.currentStatus = "Force is too low"
                     self.inProgressFlag = False
                 else:
-                    self.currentStatus = "Force is too high"
+                    self.currentStatus = "Running"
                     self.inProgressFlag = False
                     
 
