@@ -16,7 +16,7 @@ class UiController:
         self.forceUpperBound = 12
         self.forceLowerBound = 2
         self.isRunning = False
-        self.inProgressFlag = False
+        # self.inProgressFlag = False
         # self.x_axis = self.buffer["time"]
         # # self.x_axis = np.linspace(0, 10, 100)
         # self.y_axis = self.buffer["force"]
@@ -47,7 +47,10 @@ class UiController:
 
     def save_buffer_to_file(self, filename):
         '''Saves the buffer to a file'''
-        studentName = filename.split('.')[0]
+        try:
+            studentName = filename.split('.')[0]
+        except:
+            studentName = str("test")
         with open(filename, 'w') as f:
             f.write(f"Student Name: {studentName}\n\n")
             f.write('Time  |   Force   |  Status\n')
@@ -87,14 +90,6 @@ class UiController:
                 dpg.add_button(label="Start", callback=self.cb_start)
                 # reset button
                 dpg.add_button(label="Reset", callback=self.cb_reset)
-        # # plot
-        # with dpg.window(label="force Value", height=400, width=800):
-        #     with dpg.plot(label="Plot", height=-1, width=-1):
-        #         dpg.add_plot_legend()
-        #         x_axis = dpg.add_plot_axis(dpg.mvXAxis, label="x", tag="x_axis",no_tick_labels=True)
-        #         y_axis = dpg.add_plot_axis(dpg.mvYAxis, label="y", tag="y_axis")
-        #         dpg.set_axis_limits(y_axis, 0, 102300000)
-        #         dpg.add_line_series(self.x_axis, self.y_axis, label="force FSR", parent="y_axis", tag="tag_plot")
                 
     
     def cb_get_student_name(self):
@@ -116,28 +111,29 @@ class UiController:
                 print(self.buffer)
                 
                 
-    def set_status_flag(self):
+    def set_status(self):
         while True:
             while self.isRunning:
                 try:
                     data = self.buffer["force"][-1]
                 except:
                     data = 0
-                # if force in range, set flag to true
-                if (float(data) > self.forceUpperBound):
+                if (data >= self.forceLowerBound & data < self.forceUpperBound):
                     self.currentStatus = "Start collecing blood"
-                    self.inProgressFlag = True
+                    dpg.set_value("Experiment Status", self.currentStatus)
                     time.sleep(3)
                     self.currentStatus = "In progress"
+                    dpg.set_value("Experiment Status", self.currentStatus)
                     time.sleep(12)
                     self.currentStatus = "Finished"
-                elif (float(data) < self.forceLowerBound & self.inProgressFlag == False):
+                    time.sleep(3)
+                if (data < self.forceLowerBound):
                     self.currentStatus = "Force is too low"
-                    self.inProgressFlag = False
-                else:
-                    self.currentStatus = "Running"
-                    self.inProgressFlag = False
-                    
+                    dpg.set_value("Experiment Status", self.currentStatus)
+                if (data > self.forceUpperBound):
+                    self.currentStatus = "Force is too high"
+                    dpg.set_value("Experiment Status", self.currentStatus)
+                print(f"status: {self.currentStatus}")
 
 
     def update_ui(self):
@@ -151,7 +147,6 @@ class UiController:
                     timeTakenUI = 0
                 dpg.set_value("Time Taken", timeTakenUI)
                 dpg.set_value("force FSR", data)
-                dpg.set_value("Experiment Status", self.currentStatus)
         
         
     def cb_start(self):
@@ -180,7 +175,9 @@ class UiController:
     def thread_running(self):
         thread_record_data = Thread(target=self.thread_record_data)
         thread_update_ui = Thread(target=self.update_ui)
-        thread_status_flag = Thread(target=self.set_status_flag)
+        thread_status_flag = Thread(target=self.set_status)
+        
+        
         thread_status_flag.start()
         thread_record_data.start()
         thread_update_ui.start()

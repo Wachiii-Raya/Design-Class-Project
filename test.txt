@@ -1,7 +1,0 @@
-Student Name: test
-
-Time  |   Force   |  Status
------------------------------
-1.0      hello         heo
-2.0      hello         heo
-5.0      hello         heo
